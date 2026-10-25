@@ -154,7 +154,7 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
     nav = content = nil; status = selectionLabel = brushLabel = applyLabel = connectionText = batteryText = deviceStatusText = hexField = nameField = nil;
     applyButton = nil; keyboard = nil; effect = effectBrightness = speed = direction = palette = latency = sleepPopup = trigger = nil;
     macroText = nil; macroCapture = nil;
-    [selected removeAllIndexes]; [swatches removeAllObjects]; [targets removeAllObjects];
+    [selected removeAllIndexes]; [swatches removeAllObjects]; [self dropTargets];
     uiBuilt = NO;
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
         if (!self->uiBuilt) malloc_zone_pressure_relief(NULL, 0);
@@ -267,6 +267,13 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
     return label;
 }
 
+// The control being clicked may be what triggered the rebuild, so its target is released on the next run loop pass.
+- (void)dropTargets {
+    NSArray *old = targets;
+    targets = [NSMutableArray new];
+    dispatch_async(dispatch_get_main_queue(), ^{ [old count]; });
+}
+
 - (F75Target *)target:(void (^)(id sender))block {
     F75Target *t = [F75Target new];
     t.block = block;
@@ -376,7 +383,7 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
 - (void)build {
     @autoreleasepool {
         if (macroRecording) [self stopMacroRecording:NO];
-        [targets removeAllObjects]; [swatches removeAllObjects];
+        [self dropTargets]; [swatches removeAllObjects];
         deviceStatusText = nil; keyboard = nil; hexField = nil; brushLabel = nil; selectionLabel = nil; nameField = nil; macroCapture = nil; macroText = nil;
         applyLabel = nil; applyButton = nil;
         NSView *root = [NSView new];
@@ -1167,12 +1174,7 @@ int main(int argc, const char *argv[]) {
         for (int i = 1; i < argc; i++) {
             if (!strcmp(argv[i], "--self-test")) { int failures = f75_self_test(PrintLine); printf("%d failure(s)\n", failures); return failures ? 1 : 0; }
             if (!strcmp(argv[i], "--diagnose")) {
-                NSError *error;
-                NSData *raw = [[F75HID shared] queryStatus:&error];
-                if (!raw) { fprintf(stderr, "%s\n", error.localizedDescription.UTF8String); return 1; }
-                printf("USB 1A2C:A073 FF02:0002 64/64 + report ID\n");
-                for (NSUInteger j = 0; j < raw.length; j++) printf(j ? "-%02X" : "%02X", ((const uint8_t *)raw.bytes)[j]);
-                printf("\n");
+                printf("F75 Studio 1.0 (macOS %s)\n%s", NSProcessInfo.processInfo.operatingSystemVersionString.UTF8String, [[F75HID shared] diagnosticReport].UTF8String);
                 return 0;
             }
             if (!strcmp(argv[i], "--low-latency")) {
