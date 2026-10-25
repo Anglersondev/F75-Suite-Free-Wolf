@@ -75,6 +75,7 @@ Não testado:
 - Não foi compilado nem executado num Mac: compilar para macOS exige o SDK da Apple, que só existe num Mac. Interface, layout das telas e ciclo de vida não foram vistos rodando.
 - Transporte USB no Mac (abrir a interface FF02:0002, enviar relatório de saída de 64 bytes com report ID 0, ler a resposta 0E) segue o mesmo modelo do hidapi, mas não foi conferido com o teclado.
 - Os avisos de conectar e desconectar o cabo usam `IOHIDManager` sem abrir os dispositivos; se não chegarem no seu macOS, use Consultar conexão e bateria.
+- Se o teclado não responder, o app mostra um aviso com **Copiar diagnóstico**: ele testa cada interface do teclado, três formas de envio (relatório de saída de 64 ou 65 bytes e relatório de recurso) e acesso exclusivo, e copia o resultado. A primeira forma que o teclado responde é usada no resto da sessão.
 - Se o macOS pedir permissão de **Monitoramento de Entrada**, aceite: a interface FF02 é de fabricante e normalmente não pede.
 - Mesmos limites da versão Windows: resposta, suspensão e macros não tiveram validação física; não há prova de que o teclado guarda os ajustes depois de desligado; barra lateral sem comando conhecido.
 - Consumo de RAM e CPU no Mac não foi medido. Use `--measure` e o Monitor de Atividade para comparar.
