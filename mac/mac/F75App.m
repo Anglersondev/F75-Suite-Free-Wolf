@@ -1044,8 +1044,13 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
             if (ok) {
                 if (success) success();
                 if (sent) [self setStatus:T(@"Pacotes enviados ao F75. Confira o resultado no teclado.", @"Packets sent to F75. Check the result on your keyboard.")];
+                if ([F75HID shared].lastReplyMissing && !self->quitting) {
+                    [self setStatus:T(@"Enviado, mas o F75 não respondeu. Veja o aviso.", @"Sent, but the F75 did not answer. See the alert.")];
+                    [self usbProblem:T(@"O macOS aceitou o envio, mas o teclado não respondeu. Se as cores não mudaram, ligue o cabo direto no Mac (sem hub), feche outros apps do teclado e tente de novo.", @"macOS accepted the write but the keyboard did not answer. If the colors did not change, plug the cable straight into the Mac (no hub), close other keyboard apps and try again.")];
+                }
             } else {
                 [self setStatus:[NSString stringWithFormat:@"%@%@", T(@"Operação não concluída: ", @"Operation incomplete: "), error.localizedDescription ?: @"?"]];
+                if (!completion && !self->quitting) [self usbProblem:error.localizedDescription ?: @"?"];
             }
             [self updateApply];
             if (completion) completion(ok, error);
@@ -1101,6 +1106,33 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
     }
 }
 
+// Shown when a USB operation fails or goes unanswered; the diagnostic is what is needed to fix the Mac transport.
+- (void)usbProblem:(NSString *)text {
+    NSAlert *alert = [NSAlert new];
+    alert.messageText = T(@"O F75 não confirmou o envio", @"The F75 did not confirm");
+    alert.informativeText = [text stringByAppendingString:T(@"\n\n\"Copiar diagnóstico\" testa todas as formas de envio e copia o resultado; cole-o na conversa de suporte.", @"\n\n\"Copy diagnostics\" tests every send method and copies the result; paste it into the support chat.")];
+    [alert addButtonWithTitle:T(@"Copiar diagnóstico", @"Copy diagnostics")];
+    [alert addButtonWithTitle:@"OK"];
+    if ([alert runModal] == NSAlertFirstButtonReturn) [self copyDiagnostics];
+}
+
+- (void)copyDiagnostics {
+    if (busy) return;
+    busy = YES;
+    [self setEnabled:NO];
+    [self setStatus:T(@"Testando o USB… (alguns segundos)", @"Testing USB… (a few seconds)")];
+    dispatch_async(io, ^{
+        NSString *report = [NSString stringWithFormat:@"F75 Studio 1.0 (macOS %@)\n%@", NSProcessInfo.processInfo.operatingSystemVersionString, [[F75HID shared] diagnosticReport]];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            self->busy = NO;
+            [self setEnabled:YES];
+            [[NSPasteboard generalPasteboard] clearContents];
+            [[NSPasteboard generalPasteboard] setString:report forType:NSPasteboardTypeString];
+            [self setStatus:T(@"Diagnóstico copiado. Cole na conversa de suporte.", @"Diagnostics copied. Paste it into the support chat.")];
+        });
+    });
+}
+
 - (void)exportDiagnostics {
     NSSavePanel *panel = [NSSavePanel savePanel];
     panel.nameFieldStringValue = @"F75-diagnostics.txt";
@@ -1111,9 +1143,9 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
         F75Status *d = [[F75HID shared] readStatusSnapshot];
         NSMutableString *raw = [NSMutableString new];
         for (NSUInteger i = 0; i < d.raw.length; i++) [raw appendFormat:i ? @"-%02X" : @"%02X", ((const uint8_t *)d.raw.bytes)[i]];
-        NSString *text = [NSString stringWithFormat:@"F75 Studio 1.0 final (macOS %@)\nUTC: %@\nTransport: %@\nResponding: %@\nReported battery: %@\nDetail: %@\nRaw: %@\n",
+        NSString *text = [NSString stringWithFormat:@"F75 Studio 1.0 final (macOS %@)\nUTC: %@\nTransport: %@\nResponding: %@\nReported battery: %@\nDetail: %@\nRaw: %@\n\n%@",
                           NSProcessInfo.processInfo.operatingSystemVersionString, [[NSISO8601DateFormatter new] stringFromDate:[NSDate date]], d.transport, d.responding ? @"True" : @"False",
-                          d.battery >= 0 ? [NSString stringWithFormat:@"%d%%", d.battery] : @"unavailable", d.detail, d.raw ? raw : @"unavailable"];
+                          d.battery >= 0 ? [NSString stringWithFormat:@"%d%%", d.battery] : @"unavailable", d.detail, d.raw ? raw : @"unavailable", [[F75HID shared] diagnosticReport]];
         NSError *error;
         BOOL ok = [text writeToURL:url atomically:YES encoding:NSUTF8StringEncoding error:&error];
         dispatch_async(dispatch_get_main_queue(), ^{

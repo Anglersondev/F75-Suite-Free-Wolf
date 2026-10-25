@@ -18,6 +18,8 @@
 - (void)startWatching; // main thread
 - (void)stopWatching;  // main thread
 // The calls below block (USB I/O); call them on one serial background queue only.
+// YES when the last sendPackets wrote without error but the keyboard never answered the 0E query.
+@property (readonly) BOOL lastReplyMissing;
 - (BOOL)sendPackets:(const uint8_t (*)[F75_PACKET])packets count:(int)count error:(NSError **)error;
 - (NSData *)queryStatus:(NSError **)error; // wired F75, raw reply from AA
 - (F75Status *)readStatusSnapshot;

@@ -49,6 +49,7 @@ static NSDictionary *Match(int product) {
     IOHIDDeviceRef device;
     F75Input *input;
     BOOL statusOnly;
+    IOOptionBits options;
 }
 @end
 
@@ -59,7 +60,7 @@ static CFStringRef const F75RunLoopMode = CFSTR("F75StudioHID");
     if (device) {
         IOHIDDeviceRegisterInputReportCallback(device, input->buffer, sizeof input->buffer, NULL, NULL);
         IOHIDDeviceUnscheduleFromRunLoop(device, CFRunLoopGetCurrent(), F75RunLoopMode);
-        IOHIDDeviceClose(device, kIOHIDOptionsTypeNone);
+        IOHIDDeviceClose(device, options);
         CFRelease(device);
     }
     free(input);
@@ -136,30 +137,55 @@ static NSString *ReturnText(IOReturn r) {
     return [NSString stringWithFormat:@"0x%08X", (unsigned)r];
 }
 
-// reason receives why no interface could be opened (sizes or IOHIDDeviceOpen result), for the status bar and --diagnose.
-- (F75Open *)openReceiver:(BOOL)receiver present:(BOOL *)present reason:(NSString **)reason {
-    *present = NO;
-    for (id object in [self devicesMatching:Match(receiver ? F75_RECEIVER_PID : F75_PID)]) {
+static BOOL HasVendorUsage(IOHIDDeviceRef device) {
+    if (IntProperty(device, CFSTR("PrimaryUsagePage")) == F75_USAGE_PAGE) return YES;
+    NSArray *pairs = (__bridge NSArray *)IOHIDDeviceGetProperty(device, CFSTR("DeviceUsagePairs"));
+    for (NSDictionary *pair in pairs) if ([pair[@"DeviceUsagePage"] intValue] == F75_USAGE_PAGE) return YES;
+    return NO;
+}
+
+// Every 1A2C interface that can take 64-byte reports, best first: the FF02 vendor interface of A073, then any other
+// FF02 interface (some boards change PID in Mac mode), then any 1A2C interface with 64-byte output reports.
+// Keyboard/mouse interfaces have 1-byte (LED) output reports and are never opened.
+- (NSArray *)candidates:(BOOL)receiver {
+    NSMutableArray *scored = [NSMutableArray new];
+    for (id object in [self devicesMatching:@{@kIOHIDVendorIDKey: @(F75_VID)}]) {
         IOHIDDeviceRef device = (__bridge IOHIDDeviceRef)object;
-        *present = YES;
-        // 64 data bytes each way (65 on Windows, which counts the report ID). A missing property is not a reason to skip.
-        int input = IntProperty(device, CFSTR(kIOHIDMaxInputReportSizeKey)), output = IntProperty(device, CFSTR(kIOHIDMaxOutputReportSizeKey));
-        if ((input && input < 64) || (output && output < 64)) {
-            if (reason) *reason = [NSString stringWithFormat:@"Interface com relatórios de %d/%d bytes / reports of %d/%d bytes", input, output, input, output];
-            continue;
-        }
-        IOReturn result = IOHIDDeviceOpen(device, kIOHIDOptionsTypeNone);
-        if (result != kIOReturnSuccess) {
-            if (reason) *reason = [NSString stringWithFormat:@"IOHIDDeviceOpen: %@", ReturnText(result)];
-            continue;
-        }
-        F75Open *open = [F75Open new];
-        open->device = (IOHIDDeviceRef)CFRetain(device);
-        open->input = calloc(1, sizeof(F75Input));
-        open->statusOnly = receiver;
-        IOHIDDeviceRegisterInputReportCallback(device, open->input->buffer, sizeof open->input->buffer, F75InputReport, open->input);
-        IOHIDDeviceScheduleWithRunLoop(device, CFRunLoopGetCurrent(), F75RunLoopMode);
-        return open;
+        int pid = IntProperty(device, CFSTR(kIOHIDProductIDKey)), output = IntProperty(device, CFSTR(kIOHIDMaxOutputReportSizeKey));
+        if ((pid == F75_RECEIVER_PID) != receiver) continue;
+        BOOL vendor = HasVendorUsage(device);
+        if (!vendor && output < 64) continue;
+        if (output && output < 64) continue;
+        [scored addObject:@[@((vendor ? 4 : 0) + (pid == F75_PID ? 2 : 0) + (output >= 64 ? 1 : 0)), object]];
+    }
+    [scored sortUsingComparator:^NSComparisonResult(NSArray *a, NSArray *b) { return [b[0] compare:a[0]]; }];
+    NSMutableArray *devices = [NSMutableArray new];
+    for (NSArray *pair in scored) [devices addObject:pair[1]];
+    return devices;
+}
+
+- (F75Open *)openDevice:(IOHIDDeviceRef)device statusOnly:(BOOL)statusOnly options:(IOOptionBits)options result:(IOReturn *)result {
+    *result = IOHIDDeviceOpen(device, options);
+    if (*result != kIOReturnSuccess) return nil;
+    F75Open *open = [F75Open new];
+    open->device = (IOHIDDeviceRef)CFRetain(device);
+    open->options = options;
+    open->input = calloc(1, sizeof(F75Input));
+    open->statusOnly = statusOnly;
+    IOHIDDeviceRegisterInputReportCallback(device, open->input->buffer, sizeof open->input->buffer, F75InputReport, open->input);
+    IOHIDDeviceScheduleWithRunLoop(device, CFRunLoopGetCurrent(), F75RunLoopMode);
+    return open;
+}
+
+// reason receives why no interface could be opened, for the status bar and --diagnose.
+- (F75Open *)openReceiver:(BOOL)receiver present:(BOOL *)present reason:(NSString **)reason {
+    NSArray *devices = [self candidates:receiver];
+    *present = devices.count > 0;
+    for (id object in devices) {
+        IOReturn result;
+        F75Open *open = [self openDevice:(__bridge IOHIDDeviceRef)object statusOnly:receiver options:kIOHIDOptionsTypeNone result:&result];
+        if (open) return open;
+        if (reason) *reason = [NSString stringWithFormat:@"IOHIDDeviceOpen: %@", ReturnText(result)];
     }
     return nil;
 }
@@ -168,35 +194,92 @@ static NSString *ReturnText(IOReturn r) {
     return [self openReceiver:receiver present:present reason:NULL];
 }
 
-- (BOOL)send:(const uint8_t *)packet on:(F75Open *)open error:(NSError **)error {
+// How the report reaches the keyboard. Windows writes 65 bytes (report ID 0 + 64) with WriteFile; IOKit can express that
+// three ways, and which one the F75 firmware accepts on macOS has not been observed yet, so the first one that the
+// keyboard answers (status 0E) is kept for the rest of the session.
+typedef enum { F75WriteOutput64 = 0, F75WriteOutput65, F75WriteFeature64, F75WriteModes } F75WriteMode;
+static F75WriteMode writeMode = F75WriteOutput64;
+static BOOL writeModeConfirmed = NO;
+static const char *const WriteModeNames[] = {"output id0 64", "output id0 65", "feature id0 64"};
+
+static IOReturn Write(IOHIDDeviceRef device, const uint8_t *packet, F75WriteMode mode) {
+    switch (mode) {
+    case F75WriteOutput65: return IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput, 0, packet, F75_PACKET);
+    case F75WriteFeature64: return IOHIDDeviceSetReport(device, kIOHIDReportTypeFeature, 0, packet + 1, F75_PACKET - 1);
+    default: return IOHIDDeviceSetReport(device, kIOHIDReportTypeOutput, 0, packet + 1, F75_PACKET - 1);
+    }
+}
+
+- (BOOL)send:(const uint8_t *)packet on:(F75Open *)open mode:(F75WriteMode)mode error:(NSError **)error {
     if (!f75_valid_packet(packet)) { if (error) *error = F75Error(@"Invalid F75 packet"); return NO; }
     if (open->statusOnly) {
         BOOL empty = packet[5] == 0x0e;
         for (int i = 6; i < F75_PACKET && empty; i++) if (packet[i]) empty = NO;
         if (!empty) { if (error) *error = F75Error(@"Receiver permits only status command 0E"); return NO; }
     }
-    // Byte 0 is report ID 0: IOKit takes it as a separate argument and the 64 data bytes after it.
-    IOReturn result = IOHIDDeviceSetReport(open->device, kIOHIDReportTypeOutput, 0, packet + 1, F75_PACKET - 1);
+    IOReturn result = Write(open->device, packet, mode);
     if (result != kIOReturnSuccess) {
-        if (error) *error = F75Error([NSString stringWithFormat:@"Falha na escrita USB / USB write failed: %@", ReturnText(result)]);
+        if (error) *error = F75Error([NSString stringWithFormat:@"Falha na escrita USB / USB write failed (%s): %@", WriteModeNames[mode], ReturnText(result)]);
         return NO;
     }
     usleep(20000);
     return YES;
 }
 
-- (NSData *)statusOn:(F75Open *)open error:(NSError **)error {
-    uint8_t packet[F75_PACKET];
-    f75_packet(packet, 0x0e, NULL, 0);
-    open->input->got = NO;
-    if (![self send:packet on:open error:error]) return nil;
+- (BOOL)send:(const uint8_t *)packet on:(F75Open *)open error:(NSError **)error {
+    return [self send:packet on:open mode:writeMode error:error];
+}
+
+- (BOOL)waitForStatus:(F75Open *)open {
     // Up to 8 reports, giving up after 250 ms of silence, as in Device.cs.
     for (int i = 0; i < 8 && !open->input->got; i++) {
         SInt32 result = CFRunLoopRunInMode(F75RunLoopMode, 0.25, true);
         if (result == kCFRunLoopRunTimedOut || result == kCFRunLoopRunFinished) break;
     }
+    if (!open->input->got) {
+        // Some devices only answer a GET_REPORT on the control pipe.
+        uint8_t report[128]; CFIndex length = sizeof report;
+        if (IOHIDDeviceGetReport(open->device, kIOHIDReportTypeInput, 0, report, &length) == kIOReturnSuccess) F75InputReport(open->input, kIOReturnSuccess, NULL, kIOHIDReportTypeInput, 0, report, length);
+    }
+    return open->input->got;
+}
+
+- (NSData *)statusOn:(F75Open *)open error:(NSError **)error {
+    uint8_t packet[F75_PACKET];
+    f75_packet(packet, 0x0e, NULL, 0);
+    NSError *firstWriteError = nil;
+    BOOL wrote = NO;
+    // Until a mode is confirmed by a reply, try each one; afterwards only the confirmed mode.
+    for (int mode = writeModeConfirmed ? writeMode : 0; mode < F75WriteModes; mode++) {
+        NSError *e = nil;
+        open->input->got = NO;
+        if ([self send:packet on:open mode:(F75WriteMode)mode error:&e]) {
+            if (!wrote) { wrote = YES; if (!writeModeConfirmed) writeMode = (F75WriteMode)mode; }
+            if ([self waitForStatus:open]) { writeMode = (F75WriteMode)mode; writeModeConfirmed = YES; break; }
+        } else if (!firstWriteError) firstWriteError = e;
+        if (writeModeConfirmed) break;
+    }
+    if (!wrote) { if (error) *error = firstWriteError; return nil; }
     if (!open->input->got) { if (error) *error = F75Error(@"F75 não respondeu à consulta / No F75 status response."); return nil; }
     return [NSData dataWithBytes:open->input->reply length:(NSUInteger)open->input->replyLength];
+}
+
+// No reply on a shared open: another process (the vendor's own app, a key remapper) may be holding the interface.
+// Reopen it exclusively once; if that is refused or still silent, keep the shared open.
+// Returns NO only when the interface could not be reopened at all (*openRef is then nil).
+- (BOOL)seizeIfSilent:(F75Open *__strong *)openRef {
+    IOHIDDeviceRef device = (IOHIDDeviceRef)CFRetain((*openRef)->device);
+    BOOL statusOnly = (*openRef)->statusOnly;
+    *openRef = nil;   // closes the shared open before asking for exclusive access
+    IOReturn result;
+    F75Open *seized = [self openDevice:device statusOnly:statusOnly options:kIOHIDOptionsTypeSeizeDevice result:&result];
+    if (seized && [self statusOn:seized error:NULL]) *openRef = seized;
+    else {
+        seized = nil;
+        *openRef = [self openDevice:device statusOnly:statusOnly options:kIOHIDOptionsTypeNone result:&result];
+    }
+    CFRelease(device);
+    return *openRef != nil;
 }
 
 static NSString *const F75Unavailable = @"F75 USB (1A2C:A073) indisponível / unavailable. Conecte por cabo e feche outros apps do teclado / Connect by cable and close other keyboard apps.";
@@ -210,6 +293,7 @@ static NSString *const F75Unavailable = @"F75 USB (1A2C:A073) indisponível / un
 - (BOOL)sendPackets:(const uint8_t (*)[F75_PACKET])packets count:(int)count error:(NSError **)error {
     NSError *failure = nil;
     BOOL ok = NO;
+    _lastReplyMissing = NO;
     @autoreleasepool {
         BOOL present; NSString *reason = nil; NSError *e = nil;
         F75Open *open = [self openReceiver:NO present:&present reason:&reason];
@@ -217,9 +301,15 @@ static NSString *const F75Unavailable = @"F75 USB (1A2C:A073) indisponível / un
         else {
             // The status reply is the least proven part on macOS; a missing reply is not a reason to skip the write.
             // A failed write is: it means the interface does not accept output reports.
-            if (![self statusOn:open error:&e] && [e.localizedDescription hasPrefix:@"Falha na escrita"]) failure = e;
-            else {
+            BOOL writeFailed = NO;
+            if (![self statusOn:open error:&e]) {
+                writeFailed = [e.localizedDescription hasPrefix:@"Falha na escrita"];
+                if (!writeFailed && ![self seizeIfSilent:&open]) failure = [self unavailable:@"reopen failed"];
+            }
+            if (!failure && writeFailed) failure = e;
+            if (!failure) {
                 ok = YES;
+                _lastReplyMissing = !open->input->got;
                 for (int i = 0; i < count && ok; i++) if (![self send:packets[i] on:open error:&e]) { ok = NO; failure = e; }
             }
         }
@@ -235,7 +325,10 @@ static NSString *const F75Unavailable = @"F75 USB (1A2C:A073) indisponível / un
         BOOL present; NSString *reason = nil; NSError *e = nil;
         F75Open *open = [self openReceiver:NO present:&present reason:&reason];
         if (!open) failure = [self unavailable:present ? reason : nil];
-        else if (!(raw = [self statusOn:open error:&e])) failure = e;
+        else if (!(raw = [self statusOn:open error:&e])) {
+            if ([self seizeIfSilent:&open] && open->input->got) raw = [NSData dataWithBytes:open->input->reply length:(NSUInteger)open->input->replyLength];
+            else failure = e;
+        }
     }
     if (!raw && error) *error = failure;
     return raw;
@@ -263,20 +356,27 @@ static NSString *Describe(IOHIDDeviceRef device) {
     NSMutableString *out = [NSMutableString new];
     @autoreleasepool {
         NSArray *all = [self devicesMatching:@{@kIOHIDVendorIDKey: @(F75_VID)}];
+        [out appendFormat:@"macOS %@\n", [NSProcessInfo processInfo].operatingSystemVersionString];
         [out appendFormat:@"HID devices with VID 1A2C: %lu\n", (unsigned long)all.count];
         for (id object in all) [out appendFormat:@"-\n%@", Describe((__bridge IOHIDDeviceRef)object)];
         [out appendFormat:@"F75 vendor interfaces (A073 FF02:0002): %lu\n", (unsigned long)[self devicesMatching:Match(F75_PID)].count];
-        BOOL present; NSString *reason = nil;
-        F75Open *open = [self openReceiver:NO present:&present reason:&reason];
-        if (!open) { [out appendFormat:@"Open: failed%@\n", reason ? [@" — " stringByAppendingString:reason] : @" (no matching interface)"]; return out; }
-        [out appendString:@"Open: ok\n"];
+        NSArray *candidates = [self candidates:NO];
+        [out appendFormat:@"Config candidates: %lu\n", (unsigned long)candidates.count];
         uint8_t packet[F75_PACKET];
         f75_packet(packet, 0x0e, NULL, 0);
-        open->input->got = NO;
-        IOReturn result = IOHIDDeviceSetReport(open->device, kIOHIDReportTypeOutput, 0, packet + 1, F75_PACKET - 1);
-        [out appendFormat:@"SetReport(output, id 0, 64 bytes) 0E: %@\n", result == kIOReturnSuccess ? @"ok" : ReturnText(result)];
-        for (int i = 0; i < 8 && !open->input->got; i++) if (CFRunLoopRunInMode(F75RunLoopMode, 0.25, true) != kCFRunLoopRunHandledSource) break;
-        [out appendFormat:@"Status reply: %@\n", open->input->got ? Hex(open->input->reply, (NSUInteger)open->input->replyLength) : @"none within 250 ms"];
+        for (int seize = 0; seize < 2; seize++) for (id object in candidates) {
+            IOHIDDeviceRef device = (__bridge IOHIDDeviceRef)object;
+            IOReturn result;
+            F75Open *open = [self openDevice:device statusOnly:NO options:seize ? kIOHIDOptionsTypeSeizeDevice : kIOHIDOptionsTypeNone result:&result];
+            [out appendFormat:@"PID 0x%04X usage 0x%04X %@: open %@\n", IntProperty(device, CFSTR(kIOHIDProductIDKey)), IntProperty(device, CFSTR("PrimaryUsagePage")), seize ? @"seize" : @"shared", open ? @"ok" : ReturnText(result)];
+            if (!open) continue;
+            for (int mode = 0; mode < F75WriteModes; mode++) {
+                open->input->got = NO;
+                IOReturn w = Write(device, packet, (F75WriteMode)mode);
+                BOOL replied = w == kIOReturnSuccess && [self waitForStatus:open];
+                [out appendFormat:@"  write %s: %@; reply: %@\n", WriteModeNames[mode], w == kIOReturnSuccess ? @"ok" : ReturnText(w), replied ? Hex(open->input->reply, (NSUInteger)open->input->replyLength) : @"none"];
+            }
+        }
     }
     return out;
 }
