@@ -27,3 +27,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "${{ github.event.release.tag_name }}" build/F75-Studio-1.0.dmg --clobber
+      # A fix pushed to main replaces the .dmg of the latest Release, keeping the 1.0 file name.
+      - if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh release view --json tagName -q .tagName 2>/dev/null || true)
+          if [ -n "$tag" ]; then gh release upload "$tag" build/F75-Studio-1.0.dmg --clobber; fi
