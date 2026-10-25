@@ -1,0 +1,19 @@
+﻿PASS response tier 1 packet
+PASS sleep protocol range
+PASS custom transaction and report length
+PASS RGB channels and Esc index
+PASS last fragment right arrow index
+PASS blackout has zero RGB
+PASS macro timing encoding
+PASS reject held macro keys
+PASS 81 unique vendor key positions
+PASS profile round trip
+PASS reject malformed profile
+PASS legacy profiles retain effect defaults
+PASS experimental effect IDs skip undeclared mode 21
+PASS zero battery remains valid and transport comes from endpoint
+PASS invalid battery is unavailable instead of fabricated
+PASS reject incomplete status report
+F75 Studio 0.6 - 2026-10-24: 13 UI captures, repeated RGB navigation, exit 0; USB reported battery 100%; idle 31.25 ms CPU / 5 s, working set 103 MiB.
+Release 1.0: version metadata updated and packages rebuilt; functionality retained from validated 0.6.
+

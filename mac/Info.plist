@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key><string>F75 Studio</string>
+	<key>CFBundleDisplayName</key><string>F75 Studio</string>
+	<key>CFBundleExecutable</key><string>F75Studio</string>
+	<key>CFBundleIdentifier</key><string>com.f75studio.mac</string>
+	<key>CFBundlePackageType</key><string>APPL</string>
+	<key>CFBundleShortVersionString</key><string>1.0</string>
+	<key>CFBundleVersion</key><string>1.0</string>
+	<key>CFBundleIconFile</key><string>F75</string>
+	<key>CFBundleDevelopmentRegion</key><string>pt-BR</string>
+	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+	<key>LSMinimumSystemVersion</key><string>11.0</string>
+	<key>LSApplicationCategoryType</key><string>public.app-category.utilities</string>
+	<key>NSHighResolutionCapable</key><true/>
+	<key>NSPrincipalClass</key><string>NSApplication</string>
+	<!-- Closing writes to the keyboard first, so macOS must not kill the app silently. -->
+	<key>NSSupportsSuddenTermination</key><false/>
+	<key>NSSupportsAutomaticTermination</key><false/>
+	<key>NSHumanReadableCopyright</key><string>F75 Studio 1.0 — app independente para o FREE WOLF F75</string>
+</dict>
+</plist>

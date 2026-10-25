@@ -1,0 +1,18 @@
+# macOS build output
+mac/build/
+.DS_Store
+
+# Windows build output (build.ps1 writes next to source/, Inno Setup to the repo root)
+windows/*.exe
+windows/*.exe.config
+F75-Studio-Setup-*.exe
+*.pdb
+
+# Packaged releases go to GitHub Releases, not git
+*.zip
+*.dmg
+
+# Editors
+.vs/
+.vscode/
+*.user

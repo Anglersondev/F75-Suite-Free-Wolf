@@ -1,0 +1,11 @@
+# Runs the shared C core self-test and checks its USB packets and profile JSON
+# byte for byte against the Windows C# code (no Mac or Windows needed).
+name: Core tests
+on: [push, pull_request, workflow_dispatch]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y mono-mcs
+      - run: WINSRC="$PWD/windows/source" sh mac/tests/run-linux.sh
