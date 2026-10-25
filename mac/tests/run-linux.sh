@@ -7,10 +7,13 @@ OUT=${TMPDIR:-/tmp}/f75-core-test; mkdir -p "$OUT"
 cc -std=c99 -Wall -Wextra -O2 -o "$OUT/selftest" core/*.c tests/run_selftest.c -lm
 "$OUT/selftest"
 cc -std=c99 -Wall -O2 -o "$OUT/golden" core/*.c tests/golden_dump.c -lm
-"$OUT/golden" | sed 's/,"LightMode":0//' > "$OUT/c.txt"
+"$OUT/golden" > "$OUT/c-full.txt"
+sed 's/,"LightMode":0//' "$OUT/c-full.txt" > "$OUT/c.txt"
 if [ -n "$WINSRC" ] && command -v mcs >/dev/null; then
   mcs -langversion:5 -nologo -out:"$OUT/golden.exe" -r:System.Core.dll "$WINSRC/Device.cs" "$WINSRC/Json.cs" "$WINSRC/Model.cs" "$WINSRC/Layout.cs" tests/GoldenDump.cs
   LC_ALL=C.UTF-8 mono "$OUT/golden.exe" > "$OUT/cs.txt"
-  diff "$OUT/cs.txt" "$OUT/c.txt" && echo "C core == Windows C# (fresh run)"
+  # The current Windows source also writes LightMode; the 1.0 golden file predates it.
+  if grep -q LightMode "$OUT/cs.txt"; then diff "$OUT/cs.txt" "$OUT/c-full.txt"; else diff "$OUT/cs.txt" "$OUT/c.txt"; fi
+  echo "C core == Windows C# (fresh run)"
 fi
 diff tests/golden-windows-1.0.txt "$OUT/c.txt" && echo "C core == Windows C# 1.0 ($(wc -l < tests/golden-windows-1.0.txt) lines of packets/JSON)"
