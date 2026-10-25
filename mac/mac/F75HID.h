@@ -21,4 +21,6 @@
 - (BOOL)sendPackets:(const uint8_t (*)[F75_PACKET])packets count:(int)count error:(NSError **)error;
 - (NSData *)queryStatus:(NSError **)error; // wired F75, raw reply from AA
 - (F75Status *)readStatusSnapshot;
+// Everything --diagnose needs to find a transport problem: every 1A2C interface, open result, write result, reply.
+- (NSString *)diagnosticReport;
 @end
