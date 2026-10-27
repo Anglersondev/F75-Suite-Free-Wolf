@@ -1044,10 +1044,8 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
             if (ok) {
                 if (success) success();
                 if (sent) [self setStatus:T(@"Pacotes enviados ao F75. Confira o resultado no teclado.", @"Packets sent to F75. Check the result on your keyboard.")];
-                if ([F75HID shared].lastReplyMissing && !self->quitting) {
-                    [self setStatus:T(@"Enviado, mas o F75 não respondeu. Veja o aviso.", @"Sent, but the F75 did not answer. See the alert.")];
-                    [self usbProblem:T(@"O macOS aceitou o envio, mas o teclado não respondeu. Se as cores não mudaram, ligue o cabo direto no Mac (sem hub), feche outros apps do teclado e tente de novo.", @"macOS accepted the write but the keyboard did not answer. If the colors did not change, plug the cable straight into the Mac (no hub), close other keyboard apps and try again.")];
-                }
+                if ([F75HID shared].lastReplyMissing && !self->quitting)
+                    [self setStatus:T(@"Pacotes enviados; consulta de status e bateria sem resposta.", @"Packets sent; status and battery query unanswered.")];
             } else {
                 [self setStatus:[NSString stringWithFormat:@"%@%@", T(@"Operação não concluída: ", @"Operation incomplete: "), error.localizedDescription ?: @"?"]];
                 if (!completion && !self->quitting) [self usbProblem:error.localizedDescription ?: @"?"];
@@ -1070,7 +1068,7 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
             self->statusStale = NO;
             [self updateDeviceLabels];
             [self updatePolling];
-            if (showMessage) [self setStatus:T(@"Consulta atualizada. Bateria é o valor informado pelo teclado; pelo cabo pode permanecer em 100%.", @"Status updated. Battery is the value reported by the keyboard; it may remain at 100% over USB.")];
+            if (showMessage) [self setStatus:s.responding ? T(@"Consulta atualizada. Bateria é o valor informado pelo teclado; pelo cabo pode permanecer em 100%.", @"Status updated. Battery is the value reported by the keyboard; it may remain at 100% over USB.") : T(@"Consulta concluída; status e bateria indisponíveis.", @"Query finished; status and battery unavailable.")];
         });
     });
 }
@@ -1088,7 +1086,7 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
     NSString *transport = T(@"Consultando conexão…", @"Checking connection…"), *battery = T(@"Bateria: aguardando leitura", @"Battery: waiting for reading");
     if (snapshot) {
         NSString *t = snapshot.transport;
-        if ([t isEqualToString:@"USB"]) transport = snapshot.responding ? @"USB · F75" : T(@"USB detectado · sem resposta", @"USB detected · no response");
+        if ([t isEqualToString:@"USB"]) transport = snapshot.responding ? @"USB · F75" : T(@"USB detectado · status indisponível", @"USB detected · status unavailable");
         else if ([t isEqualToString:@"2.4 GHz"]) transport = T(@"Sem fio 2,4 GHz · F75", @"Wireless 2.4 GHz · F75");
         else if ([t isEqualToString:@"Receiver"]) transport = T(@"Receptor 2,4 GHz · sem resposta", @"2.4 GHz receiver · no response");
         else if ([t isEqualToString:@"Bluetooth"]) transport = T(@"Bluetooth · detectado", @"Bluetooth · detected");
@@ -1106,7 +1104,7 @@ static const unsigned Bg = 0x0D1118, Panel = 0x171E29, Muted = 0x9DAABD, Accent 
     }
 }
 
-// Shown when a USB operation fails or goes unanswered; the diagnostic is what is needed to fix the Mac transport.
+// Shown when a USB operation fails; the diagnostic is what is needed to fix the Mac transport.
 - (void)usbProblem:(NSString *)text {
     NSAlert *alert = [NSAlert new];
     alert.messageText = T(@"O F75 não confirmou o envio", @"The F75 did not confirm");
