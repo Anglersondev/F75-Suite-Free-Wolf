@@ -96,7 +96,11 @@ static void F75DeviceEvent(void *context, IOReturn result, void *sender, IOHIDDe
 - (void)startWatching {
     if (watcher) return;
     watcher = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
-    IOHIDManagerSetDeviceMatchingMultiple(watcher, (__bridge CFArrayRef)@[Match(F75_PID), Match(F75_RECEIVER_PID)]);
+    // A hub may expose the device before all of its HID collections are ready.
+    // Watch the VID/PID, then let candidates: select the safe vendor interface.
+    IOHIDManagerSetDeviceMatchingMultiple(watcher, (__bridge CFArrayRef)@[
+        @{@kIOHIDVendorIDKey: @(F75_VID), @kIOHIDProductIDKey: @(F75_PID)},
+        @{@kIOHIDVendorIDKey: @(F75_VID), @kIOHIDProductIDKey: @(F75_RECEIVER_PID)}]);
     IOHIDManagerRegisterDeviceMatchingCallback(watcher, F75DeviceEvent, (__bridge void *)self);
     IOHIDManagerRegisterDeviceRemovalCallback(watcher, F75DeviceEvent, (__bridge void *)self);
     // Scheduling without IOHIDManagerOpen: notifications only, no device is opened.
@@ -119,9 +123,10 @@ static void F75DeviceEvent(void *context, IOReturn result, void *sender, IOHIDDe
     IOHIDManagerRef manager = IOHIDManagerCreate(kCFAllocatorDefault, kIOHIDOptionsTypeNone);
     if ([matching isKindOfClass:[NSArray class]]) IOHIDManagerSetDeviceMatchingMultiple(manager, (__bridge CFArrayRef)matching);
     else IOHIDManagerSetDeviceMatching(manager, (__bridge CFDictionaryRef)matching);
-    // Like hidapi: let the manager deliver its pending matches before copying the device set.
+    // A single timed-out run-loop pass is not proof that enumeration finished.
+    // Give interfaces behind a hub time to arrive before copying the device set.
     IOHIDManagerScheduleWithRunLoop(manager, CFRunLoopGetCurrent(), F75RunLoopMode);
-    for (int i = 0; i < 50 && CFRunLoopRunInMode(F75RunLoopMode, 0.001, false) == kCFRunLoopRunHandledSource; i++) {}
+    for (int i = 0; i < 20; i++) CFRunLoopRunInMode(F75RunLoopMode, 0.01, false);
     CFSetRef set = IOHIDManagerCopyDevices(manager);
     NSArray *devices = set ? [(__bridge NSSet *)set allObjects] : @[];
     if (set) CFRelease(set);
