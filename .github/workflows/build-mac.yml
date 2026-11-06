@@ -12,14 +12,14 @@ permissions:
   contents: write
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     defaults:
       run:
         working-directory: mac
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: ./build.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: F75-Studio-1.0-mac
           path: mac/build/F75-Studio-1.0.dmg
