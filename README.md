@@ -1,12 +1,30 @@
-# F75 Suite · Free Wolf
+# F75 Studio — FREE WOLF F75 Keyboard Software for Windows and macOS
 
-**A lightweight, open-source companion app for the FREE WOLF F75 keyboard, for Windows and macOS.**
+**A free, open-source companion app for the FREE WOLF F75 keyboard on Windows and macOS.**
 
 Paint every key, pick lighting effects, tune response time and sleep, record macros, and then get out of the way. F75 Studio is written to use as little RAM and CPU as possible: by default it writes your settings to the keyboard and **quits completely**, so nothing stays running in the background.
 
 > **Unofficial project.** F75 Suite is an independent, community-made tool. It is not affiliated with, endorsed by, or supported by FREE WOLF or the keyboard's manufacturer. "FREE WOLF" and "F75" are used only to say which keyboard this software works with. No code, images, or files from the original vendor software are included in this repository.
 
 ---
+
+[Download 1.0](https://github.com/Anglersondev/F75-Suite-Free-Wolf/releases/latest) · [Features](#features) · [Compatibility and-test-status](#compatibility-and-test-status) · [FAQ](#frequently-asked-questions)
+
+[![Core tests](https://github.com/Anglersondev/F75-Suite-Free-Wolf/actions/workflows/core-tests.yml/badge.svg?branch=main)](https://github.com/Anglersondev/F75-Suite-Free-Wolf/actions/workflows/core-tests.yml) [![Mac build](https://github.com/Anglersondev/F75-Suite-Free-Wolf/actions/workflows/build-mac.yml/badge.svg?branch=main)](https://github.com/Anglersondev/F75-Suite-Free-Wolf/actions/workflows/build-mac.yml)
+
+## Compatibility and test status
+
+| Item | Current status |
+| --- | --- |
+| Release | [F75 Studio 1.0](https://github.com/Anglersondev/F75-Suite-Free-Wolf/releases/latest) |
+| Windows | Windows 10/11, 64-bit; WPF and .NET Framework 4.8 |
+| macOS | macOS 11+; universal Apple Silicon and Intel build |
+| Keyboard interface | USB HID `VID 1A2C / PID A073`, vendor page `FF02:0002`; other F75 variants are unverified |
+| Windows hardware test | USB status and per-key RGB verified on one F75 with predecessor version 0.6; 1.0 protocol code is unchanged |
+| Mac build | Compiles and packages in [GitHub Actions](https://github.com/Anglersondev/F75-Suite-Free-Wolf/actions/workflows/build-mac.yml); physical keyboard communication on macOS is not yet verified |
+| Macros, lighting effects, sleep and response time | Implemented from protocol research; physical behavior still needs more testing; macros are experimental |
+
+**Check the USB ID before assuming compatibility.** Similar F75 model names can use different controllers or protocols. This project is for the documented FREE WOLF F75 interface, not every keyboard sold as “F75.”
 
 ## Why
 
@@ -130,7 +148,7 @@ Being upfront, because this is a hobby project tested on one keyboard:
 - The C core passes 35 checks with clang and gcc (also under AddressSanitizer and UBSan), and its packets and JSON match the Windows C# code byte for byte.
 
 **Not yet tested**
-- The macOS app has **not yet been compiled or run on a Mac** (the Apple SDK only exists on macOS). The Objective-C passed a syntax and type check only. Expect the first Mac build to need fixes; reports are very welcome.
+- The macOS app now **compiles and packages on a GitHub macOS runner**, but its UI and USB behavior have not been verified with the keyboard on a physical Mac. Hardware reports are welcome.
 - USB on macOS has not been tried with the keyboard.
 - Windows 1.0 lightness changes have not yet been measured on hardware. RAM/CPU savings versus the vendor app are a goal, not a measured claim yet. `windows/tools/medir-ram-cpu.ps1` and `--measure` are there so anyone can check.
 - Lighting effects, response time, sleep and macros were derived from the protocol but not physically confirmed; **macros are experimental**.
@@ -149,3 +167,29 @@ Bug reports, Mac build logs, `--measure` results and protocol findings are all w
 [MIT](LICENSE) © 2026 Anglersondev
 
 FREE WOLF is a trademark of its respective owner. This project is not affiliated with it.
+
+## Frequently asked questions
+
+### Is there FREE WOLF F75 software for Mac?
+
+F75 Studio provides an unofficial macOS app for the documented F75 USB HID interface. The Mac build is available from [Releases](https://github.com/Anglersondev/F75-Suite-Free-Wolf/releases/latest), but physical keyboard control on macOS is still unverified. Please report the USB ID and exact behavior you observe.
+
+### Can I set per-key RGB on the F75?
+
+The Windows implementation has been tested for per-key RGB on one F75 over USB. The app offers color palettes, hex colors, multi-select, presets and brightness. Other keyboards or connection modes may behave differently.
+
+### Does F75 Studio need to stay open after I change the lighting?
+
+By default, closing it writes the selected settings and quits. You can instead choose the optional tray or menu bar mode. Whether a setting survives a full keyboard power cycle has not been established.
+
+### Does it work over Bluetooth or the 2.4 GHz receiver?
+
+Configuration is **USB only**. The wireless receiver can be queried read-only for status when visible, but the app does not send lighting or macro configuration over wireless.
+
+### Are macros safe to rely on?
+
+Macros are experimental. Test them with a harmless key sequence before using them in an important workflow, and keep a profile backup.
+
+### How can I check whether my keyboard is the supported variant?
+
+Use `--diagnose` with the keyboard connected by USB and compare its vendor/product IDs with `1A2C:A073`. An identical model label alone is not enough to establish protocol compatibility.
