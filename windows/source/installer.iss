@@ -6,12 +6,13 @@
 AppId={{8F4BDF24-5E09-441D-B76F-B86833B16A74}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+VersionInfoVersion=1.0.1.0
 AppPublisher=F75 Studio
 DefaultDirName={localappdata}\Programs\F75 Studio
 DefaultGroupName=F75 Studio
 PrivilegesRequired=lowest
 OutputDir=..\..
-OutputBaseFilename=F75-Studio-Setup-1.0
+OutputBaseFilename=F75-Studio-Setup-{#MyAppVersion}
 SetupIconFile=f75.ico
 UninstallDisplayIcon={app}\F75 Studio.exe
 Compression=lzma2
@@ -30,6 +31,7 @@ Source: "..\F75 Studio.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\F75 Studio.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LEIA-ME.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\PROTOCOLO.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\F75 Studio"; Filename: "{app}\F75 Studio.exe"

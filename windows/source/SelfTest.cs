@@ -28,6 +28,16 @@ public static class SelfTest {
   // JavaScriptSerializer wrote this shape in 1.0; old session.json files must still load.
   var v10="{\"Version\":1,\"Name\":\"Meu F75\",\"Language\":\"en\",\"Colors\":["+string.Join(",",Enumerable.Repeat("9039054",108))+"],\"Brightness\":80,\"Response\":1,\"Sleep\":2,\"EffectMode\":7,\"EffectBrightness\":5,\"EffectSpeed\":4,\"EffectDirection\":0,\"EffectPalette\":0}";
   var p10=Json.ParseProfile(v10);p10.Validate();Assert(p10.Colors[107]==9039054 && p10.Language=="en","1.0 session file loads");
+  KeyboardChanges pending;
+  Assert(Json.ParseSession(v10,out pending).Colors[107]==9039054 && pending==KeyboardChanges.None,"legacy session has no pending writes");
+  original.Response=1;original.Sleep=4;
+  var session=Json.SerializeSession(original,KeyboardChanges.Performance);
+  var restored=Json.ParseSession(session,out pending);
+  Assert(pending==KeyboardChanges.Performance && restored.Response==1 && restored.Sleep==4,"queued low latency survives restart");
+  Assert(restored.PacketsFor(pending).Select(packet=>packet[5]).SequenceEqual(new byte[]{0x0d,0x0c}),"pending performance sends no lighting packets");
+  Assert(restored.PacketsFor(KeyboardChanges.None).Count==0,"clean session sends nothing");
+  restored.LightMode=1;
+  Assert(restored.PacketsFor(KeyboardChanges.All).Select(packet=>packet[5]).SequenceEqual(new byte[]{7,0x0d,0x0c}),"profile send preserves effect mode");
   var macro=new List<MacroEvent>{new MacroEvent{Code=224,Delay=10},new MacroEvent{Code=6,Delay=20},new MacroEvent{Code=6,Release=true,Delay=10},new MacroEvent{Code=224,Release=true,Delay=10}};
   var macroBack=Json.ParseMacro(Json.Serialize(macro));Assert(macroBack.Count==4 && macroBack[2].Release && macroBack[1].Delay==20 && Protocol.Macro(42,macroBack).Count==3,"macro JSON round trip");
   Assert(Json.ParseMacro("[{\"code\":4,\"delay\":10},{\"Code\":4,\"Release\":true,\"Delay\":10}]")[0].Code==4,"macro JSON hand-edited");
