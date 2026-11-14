@@ -1,6 +1,6 @@
 ﻿# Evidência e limites — FREE WOLF F75
 
-Versão atual: **F75 Studio 1.0**. Esta 1.0 muda apenas consumo de memória/CPU e o momento das consultas (status USB por evento de dispositivo, caminho HID em cache, sem polling periódico pelo cabo). Os pacotes e comandos USB são os mesmos da 1.0.
+Versão atual: **F75 Studio 1.0**. A revisão para Windows guarda ajustes pendentes no perfil local, grava apenas os grupos selecionados pelo usuário e consulta o status sob demanda ou por evento de dispositivo. Ela usa os mesmos comandos USB da publicação original.
 
 Investigação inicial: 18/10/2026. Atualização da documentação: 24/10/2026. Análise local do software instalado pelo usuário.
 
@@ -65,7 +65,9 @@ As gravações da aplicação têm timeout e conferência de quantidade de bytes
 
 O erro de navegação em Efeitos RGB decorria da associação de um painel WPF a dois pais lógicos. A correção constrói os elementos com um único pai. Também foram adicionados apagamento/restauração RGB temporários sem substituir as cores do perfil salvo, parâmetros de efeitos persistidos e minimização para a bandeja. Essas funções não representam novos comandos de firmware; não há suporte confirmado a Rapid Trigger ou SOCD.
 
-As verificações históricas acima descrevem as versões anteriores. A confirmação física de status sem fio, bateria e recursos novos depende de respostas reais do teclado; esta documentação não atribui validação física aos recursos apenas implementados.
+As verificações históricas acima descrevem as versões anteriores. A confirmação física de status sem fio, bateria e recursos novos depende de respostas reais do teclado.
+
+Em 14/11/2026, uma unidade F75 respondeu à consulta USB antes e depois do envio de resposta no nível 1 (`0D 01`) e suspensão desativada (`0C 04`). O Windows aceitou os dois relatórios de saída. Esse teste não mede o tempo de resposta nem confirma a retenção após desligar o teclado.
 
 ## Verificação da versão 0.6 — 24/10/2026
 

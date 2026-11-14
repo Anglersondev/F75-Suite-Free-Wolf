@@ -21,9 +21,9 @@ using Microsoft.Win32;
 
 [assembly: AssemblyTitle("F75 Studio")]
 [assembly: AssemblyProduct("F75 Studio")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
-[assembly: AssemblyInformationalVersion("1.1")]
+[assembly: AssemblyVersion("1.0.0.0")]
+[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyInformationalVersion("1.0")]
 
 namespace F75Studio {
 public class Studio : Window {
@@ -490,7 +490,7 @@ public class Studio : Window {
    }else if(lastStatus=="" && status!=null)status.Text=ConnectionGuidance();
   }finally{deviceGate.Release();}
  }
- async Task ExportDiagnostics(string filename){await Query();var d=deviceSnapshot;File.WriteAllText(filename,"F75 Studio 1.1\r\nHID: 1A2C:A073 FF02:0002 (USB)\r\nUTC: "+DateTime.UtcNow.ToString("O")+"\r\nTransport: "+d.Transport+"\r\nResponding: "+d.Responding+"\r\nReported battery: "+(d.BatteryPercent.HasValue?d.BatteryPercent.Value+"%":"unavailable")+"\r\nDetail: "+d.Detail+"\r\nRaw: "+(d.Raw==null?"unavailable":BitConverter.ToString(d.Raw))+"\r\n",Encoding.UTF8);}
+ async Task ExportDiagnostics(string filename){await Query();var d=deviceSnapshot;File.WriteAllText(filename,"F75 Studio 1.0\r\nHID: 1A2C:A073 FF02:0002 (USB)\r\nUTC: "+DateTime.UtcNow.ToString("O")+"\r\nTransport: "+d.Transport+"\r\nResponding: "+d.Responding+"\r\nReported battery: "+(d.BatteryPercent.HasValue?d.BatteryPercent.Value+"%":"unavailable")+"\r\nDetail: "+d.Detail+"\r\nRaw: "+(d.Raw==null?"unavailable":BitConverter.ToString(d.Raw))+"\r\n",Encoding.UTF8);}
  string ConnectionGuidance(){
   if(deviceSnapshot==null)return T("Consultando conexão…","Checking connection…");
   if(deviceSnapshot.Transport=="USB"){

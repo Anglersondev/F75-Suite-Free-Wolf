@@ -1,11 +1,12 @@
 ﻿#define MyAppName "F75 Studio"
-#define MyAppVersion "1.1"
+#define MyAppVersion "1.0"
 #define MyAppExeName "F75 Studio.exe"
 
 [Setup]
 AppId={{8F4BDF24-5E09-441D-B76F-B86833B16A74}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+VersionInfoVersion=1.0.1.0
 AppPublisher=F75 Studio
 DefaultDirName={localappdata}\Programs\F75 Studio
 DefaultGroupName=F75 Studio
@@ -30,6 +31,7 @@ Source: "..\F75 Studio.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\F75 Studio.exe.config"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\LEIA-ME.md"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\PROTOCOLO.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\..\LICENSE"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\F75 Studio"; Filename: "{app}\F75 Studio.exe"
