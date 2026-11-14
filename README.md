@@ -31,8 +31,8 @@ Paint every key, pick lighting effects, tune response time and sleep, record mac
 The vendor driver for the F75 is a resident Windows app. This project replaces it with something smaller and native on each system:
 
 - **Native UI on each OS.** WPF on Windows, plain AppKit (Objective-C) on macOS. No Electron, no webview, no cross-platform toolkit.
-- **Nothing resident by default.** Close the window and your lighting, response time and sleep settings are written to the keyboard, then the process exits.
-- **No polling.** Connection status is read when the app opens, when the cable is plugged in or removed (OS device events), and when you ask. Only a visible 2.4 GHz wireless connection is re-read every 30 s.
+- **Nothing resident by default.** Windows sends pending settings over USB and exits. macOS sends the profile on exit. Keyboard behavior after power cycling depends on the firmware.
+- **Connection status on demand.** Windows checks on open, restore, device changes and manual refresh. macOS also refreshes a visible 2.4 GHz connection every 30 seconds.
 - **Memory handed back.** When minimized or sent to the background, the whole UI is thrown away and rebuilt on restore.
 - **Small dependencies.** Windows: .NET Framework 4.8 that ships with Windows 10/11, no WinForms, no `System.Web.Extensions`, software rendering. macOS: IOKit HID directly, no kernel extension, no driver install.
 
@@ -55,8 +55,10 @@ The vendor driver for the F75 is a resident Windows app. This project replaces i
 
 Choose in **Device → App** (Windows) or **Device → When closing F75 Studio** (macOS):
 
-1. **Write to keyboard and quit** *(default).* On close, the app sends the lighting in the last mode you used (custom colors, effect, or RGB off), the response time and the sleep timer, and then exits. Zero background footprint. If the keyboard is unplugged and you had unsaved changes, it asks before quitting.
-2. **Stay in the background.** Closing or minimizing hides the window and leaves only a tray icon (Windows) or menu bar icon (macOS). No window, no timers, no USB traffic. The icon menu has *Open*, *Turn RGB off*, *Restore colors*, *Quit and write to keyboard* and *Quit without sending*.
+1. **Send settings and quit** *(default).* Windows sends only pending lighting, response or sleep changes and exits. If USB is unavailable, Windows keeps those changes in the local session so you can send them later. macOS sends the full lighting and performance profile on exit.
+2. **Stay in the background.** Closing or minimizing hides the window and leaves a tray icon (Windows) or menu bar icon (macOS). The Windows app unloads its controls and pauses keyboard status queries until you reopen it. The icon menu offers *Open*, *Turn key RGB off*, *Restore my colors* and *Quit F75 Studio*.
+
+On Windows, changes selected while connected over 2.4 GHz or Bluetooth stay pending. Connect the keyboard with a USB data cable, then choose **Send pending settings**. Check retention by closing the app, unplugging and powering off the keyboard fully, then powering it back on with the app closed.
 
 The choice is stored in the profile (`KeepInTray`), so a profile exported on one OS behaves the same on the other.
 
@@ -70,7 +72,7 @@ Get the latest build from **[Releases](../../releases/latest)**.
 | `F75-Studio-Portatil-1.0.zip` | Windows 10/11, 64-bit | Portable: unzip anywhere and run `F75 Studio.exe`; the profile is kept in a `Dados` folder next to it |
 | `F75-Studio-1.0.dmg` | macOS 11+, Apple Silicon and Intel | Built by the [Mac workflow](.github/workflows/build-mac.yml); see below |
 
-Connect the keyboard **by USB cable** and close the original vendor software before opening F75 Studio.
+Connect the keyboard **with a USB data cable** and close the original vendor software before sending settings.
 
 ### Windows SmartScreen warning
 

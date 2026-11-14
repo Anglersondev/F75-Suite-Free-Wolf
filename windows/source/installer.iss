@@ -1,5 +1,5 @@
 ﻿#define MyAppName "F75 Studio"
-#define MyAppVersion "1.0"
+#define MyAppVersion "1.1"
 #define MyAppExeName "F75 Studio.exe"
 
 [Setup]
@@ -11,7 +11,7 @@ DefaultDirName={localappdata}\Programs\F75 Studio
 DefaultGroupName=F75 Studio
 PrivilegesRequired=lowest
 OutputDir=..\..
-OutputBaseFilename=F75-Studio-Setup-1.0
+OutputBaseFilename=F75-Studio-Setup-{#MyAppVersion}
 SetupIconFile=f75.ico
 UninstallDisplayIcon={app}\F75 Studio.exe
 Compression=lzma2

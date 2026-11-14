@@ -43,6 +43,7 @@ public sealed class TrayIcon : IDisposable {
         Add();
     }
     public string Tip {get;private set;}
+    public bool IsAvailable {get{return added;}}
     NotifyIconData Data(){return new NotifyIconData {Size=Marshal.SizeOf(typeof(NotifyIconData)),Window=source.Handle,Id=1,Flags=NifMessage|NifIcon|NifTip,CallbackMessage=CallbackMessage,Icon=icon,Tip=Tip};}
     void Add(){var d=Data();added=Shell_NotifyIcon(NimAdd,ref d);}
     IntPtr Hook(IntPtr hwnd,int msg,IntPtr w,IntPtr l,ref bool handled) {
@@ -92,6 +93,6 @@ public static class Memory {
     [DllImport("kernel32.dll")] static extern IntPtr GetCurrentProcess();
     [DllImport("kernel32.dll")] static extern bool SetProcessWorkingSetSize(IntPtr process,IntPtr min,IntPtr max);
     // Called only after the UI tree is dropped; returns freed pages to Windows while the app sits hidden.
-    public static void Trim(){GC.Collect();GC.WaitForPendingFinalizers();GC.Collect();SetProcessWorkingSetSize(GetCurrentProcess(),new IntPtr(-1),new IntPtr(-1));}
+    public static void Trim(){GC.Collect(2,GCCollectionMode.Forced);SetProcessWorkingSetSize(GetCurrentProcess(),new IntPtr(-1),new IntPtr(-1));}
 }
 }

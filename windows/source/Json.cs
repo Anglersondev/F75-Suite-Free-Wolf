@@ -67,8 +67,20 @@ public static class Json {
   return (int)d;
  }
  static Dictionary<string,object> Obj(object v){var o=v as Dictionary<string,object>;if(o==null)throw new InvalidDataException("JSON: object expected");return o;}
- public static Profile ParseProfile(string text){
-  var o=Obj(Parse(text));var p=new Profile();object v;
+ public static Profile ParseProfile(string text){return ParseProfile(Obj(Parse(text)));}
+ public static Profile ParseSession(string text,out KeyboardChanges pending){
+  var o=Obj(Parse(text));
+  int value=Int(o,"PendingKeyboardChanges",0);
+  if((value & ~(int)KeyboardChanges.All)!=0)throw new InvalidDataException("JSON: PendingKeyboardChanges");
+  pending=(KeyboardChanges)value;
+  return ParseProfile(o);
+ }
+ public static string SerializeSession(Profile profile,KeyboardChanges pending){
+  string data=Serialize(profile);
+  return data.Substring(0,data.Length-1)+",\"PendingKeyboardChanges\":"+(int)pending+"}";
+ }
+ static Profile ParseProfile(Dictionary<string,object> o){
+  var p=new Profile();object v;
   p.Version=Int(o,"Version",p.Version);
   if(o.TryGetValue("Name",out v))p.Name=v as string;
   if(o.TryGetValue("Language",out v))p.Language=v as string;

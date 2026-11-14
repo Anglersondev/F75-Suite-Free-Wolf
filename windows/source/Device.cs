@@ -15,6 +15,19 @@ public sealed class DeviceStatusSnapshot {
     public string Detail {get;set;}
     public byte[] Raw {get;set;}
 }
+public sealed class KeyboardUnavailableException : IOException {
+    public bool Detected { get; private set; }
+    public KeyboardUnavailableException(bool detected) : base(detected
+        ? "F75 USB interface unavailable. Close the vendor software and reconnect the cable."
+        : "F75 USB (1A2C:A073) not detected. Connect the keyboard with a data cable.") {
+        Detected=detected;
+    }
+}
+
+public sealed class KeyboardNoResponseException : IOException {
+    public KeyboardNoResponseException() : base("No F75 status response over USB.") {}
+}
+
 public sealed class KeyboardDevice : IDisposable {
     SafeFileHandle handle;
     bool statusOnly;
@@ -43,7 +56,7 @@ public sealed class KeyboardDevice : IDisposable {
     public static KeyboardDevice Open() { return OpenInternal(false); }
     static KeyboardDevice OpenInternal(bool receiver) {bool present;return OpenInternal(receiver,out present);}
     // Last working interface path; skips a full HID enumeration on every status query and send.
-    static string cachedPath;
+    static volatile string cachedPath;
     public static void ForgetCachedPath(){cachedPath=null;}
     static KeyboardDevice TryOpen(string path,bool receiver) {
         var h=CreateFile(path,0xc0000000,3,IntPtr.Zero,3,0x40000000,IntPtr.Zero);
@@ -66,8 +79,9 @@ public sealed class KeyboardDevice : IDisposable {
     }
     static KeyboardDevice OpenInternal(bool receiver,out bool present) {
         present=false;
-        if(!receiver && cachedPath!=null) {
-            var cached=TryOpen(cachedPath,false);
+        string pathFromCache=cachedPath;
+        if(!receiver && pathFromCache!=null) {
+            var cached=TryOpen(pathFromCache,false);
             if(cached!=null){present=true;return cached;}
             cachedPath=null;
         }
@@ -79,6 +93,7 @@ public sealed class KeyboardDevice : IDisposable {
                 var d=new InterfaceData(); d.Size=Marshal.SizeOf(d);
                 if(!SetupDiEnumDeviceInterfaces(set,IntPtr.Zero,ref guid,i,ref d)) break;
                 uint size; SetupDiGetDeviceInterfaceDetail(set,ref d,IntPtr.Zero,0,out size,IntPtr.Zero);
+                if(size<8)continue;
                 IntPtr detail=Marshal.AllocHGlobal((int)size);
                 try {
                     Marshal.WriteInt32(detail,IntPtr.Size==8?8:6);
@@ -92,7 +107,7 @@ public sealed class KeyboardDevice : IDisposable {
                 } finally {Marshal.FreeHGlobal(detail);}
             }
         } finally {SetupDiDestroyDeviceInfoList(set);}
-        throw new IOException("F75 USB (1A2C:A073) indisponível / unavailable. Conecte por cabo e feche o driver original / Connect by cable and close the original driver.");
+        throw new KeyboardUnavailableException(present);
     }
     static bool HasBrandedBluetooth() {
         Guid guid;HidD_GetHidGuid(out guid);
@@ -167,7 +182,7 @@ public sealed class KeyboardDevice : IDisposable {
             }
             if(n==0)break;
         }
-        throw new IOException("F75 não respondeu à consulta / No F75 status response.");
+        throw new KeyboardNoResponseException();
     }
     public void Dispose() {
         if(handle!=null){handle.Dispose();handle=null;}
